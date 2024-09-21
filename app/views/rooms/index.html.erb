@@ -1,9 +1,18 @@
 <h1>Salas Disponibles</h1>
 
-<div id="rooms">
-  <% @rooms.each do |room| %>
-    <div>
-      <%= button_to room.name, room_meets_path(room), method: :get, class: "btn btn-primary" %>
-    </div>
-  <% end %>
+<div class="container">
+  <div class="row">
+    <% @rooms.each do |room| %>
+      <div class="col-md-4 mb-4"> <!-- Cambia el número de columnas según el diseño deseado -->
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title"><%= room.name %></h5>
+            <p class="card-text">Capacidad: <%= room.capacity %> personas</p>
+            <p class="card-text">Disponibilidad: <%= room.availability %></p>
+            <%= link_to 'Ver Reuniones', room_meets_path(room), class: "btn btn-primary" %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
 </div>

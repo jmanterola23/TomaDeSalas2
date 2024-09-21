@@ -1,0 +1,25 @@
+<h1 class="text-center">Reuniones para <%= @room.name %></h1>
+
+<div id="meets_container" class="container mt-4">
+  <% if @meets.present? %>
+    <div class="row">
+      <% @meets.each do |meet| %>
+        <div class="col-md-4 mb-3"> <!-- Cada tarjeta ocupa un tercio del ancho en pantallas medianas y más -->
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Reunión: <%= meet.description %></h5>
+              <p class="card-text">Hora: <%= meet.hour.getlocal.strftime("%H:%M") %></p>
+              <% unless meet.reserved %>
+                <%= button_to 'Reservar', reserve_meet_path(meet), method: :post, class: "btn btn-success" %>
+              <% else %>
+                <span class="badge bg-danger">Reservada</span>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="text-center">No hay reuniones disponibles para esta sala.</p>
+  <% end %>
+</div>

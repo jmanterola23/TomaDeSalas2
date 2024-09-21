@@ -1,6 +1,8 @@
 Rails.application.routes.draw do
-  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
-
-  # Defines the root path route ("/")
-  # root "articles#index"
+  resources :rooms do
+    get 'meets', to: 'meets#index'
+  end
+  resources :meets do
+    post 'reserve', on: :member
+  end # Aquí cerramos el bloque de resources :meets
 end

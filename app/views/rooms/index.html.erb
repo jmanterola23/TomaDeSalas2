@@ -1,0 +1,9 @@
+<h1>Salas Disponibles</h1>
+
+<div id="rooms">
+  <% @rooms.each do |room| %>
+    <div>
+      <%= button_to room.name, room_meets_path(room), method: :get, class: "btn btn-primary" %>
+    </div>
+  <% end %>
+</div>

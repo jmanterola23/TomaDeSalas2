@@ -1,8 +1,8 @@
 Rails.application.routes.draw do
   resources :rooms do
-    get 'meets', to: 'meets#index'
-  end
-  resources :meets do
-    post 'reserve', on: :member
-  end # Aquí cerramos el bloque de resources :meets
+    resources :meets, only: [:index] do
+      post 'reserve', on: :member
+      post 'cancel_reservation', on: :member
+    end
+  end  
 end

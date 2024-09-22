@@ -2,6 +2,7 @@ class Room < ApplicationRecord
   has_many :meets
 
   after_create :initialize_meetings
+  validates :capacity, presence: true
 
   private
 

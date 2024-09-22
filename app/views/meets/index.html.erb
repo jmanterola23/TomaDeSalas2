@@ -1,25 +1,163 @@
-<h1 class="text-center">Reuniones para <%= @room.name %></h1>
+<h1>Reuniones para <%= @room.name %></h1>
 
-<div id="meets_container" class="container mt-4">
+<div class="d-flex justify-content-end mb-3">
+  <%= link_to 'Volver a las Salas', rooms_path, class: 'btn btn-primary' %>
+</div>
+
+<!-- Input oculto para almacenar el ID del Meet -->
+<input type="hidden" id="meet_id" value="">
+
+<!-- Elemento para mostrar la capacidad disponible -->
+<div id="availableCapacity"></div>
+
+<div id="meets_container" class="list-group">
   <% if @meets.present? %>
-    <div class="row">
-      <% @meets.each do |meet| %>
-        <div class="col-md-4 mb-3"> <!-- Cada tarjeta ocupa un tercio del ancho en pantallas medianas y más -->
-          <div class="card">
-            <div class="card-body">
-              <h5 class="card-title">Reunión: <%= meet.description %></h5>
-              <p class="card-text">Hora: <%= meet.hour.getlocal.strftime("%H:%M") %></p>
-              <% unless meet.reserved %>
-                <%= button_to 'Reservar', reserve_meet_path(meet), method: :post, class: "btn btn-success" %>
-              <% else %>
-                <span class="badge bg-danger">Reservada</span>
-              <% end %>
-            </div>
-          </div>
-        </div>
-      <% end %>
-    </div>
+    <% @meets.each do |meet| %>
+      <div class="list-group-item">
+        <h2>Reunión: <%= meet.description %></h2>
+        <p>Hora: <%= meet.hour.getlocal.strftime("%H:%M") %></p>
+        <% if meet.reserved %>
+          <p>Esta reunión ya está reservada.</p>
+          <%= button_to 'Eliminar Reserva', cancel_reservation_room_meet_path(@room, meet), method: :post, class: "btn btn-danger", remote: true, id: "cancel-reservation-#{meet.id}" %>
+        <% else %>
+          <%= button_to 'Reservar', '#', 
+                class: "btn btn-success", 
+                data: { 
+                  toggle: "modal", 
+                  target: "#reservationModal", 
+                  room_id: @room.id, 
+                  meet_id: meet.id, 
+                  available_capacity: @room.capacity - (meet.participants_count || 0),
+                  participants_count: meet.participants_count || 0 
+                } %>
+        <% end %>
+      </div>
+    <% end %>
   <% else %>
-    <p class="text-center">No hay reuniones disponibles para esta sala.</p>
+    <p>No hay reuniones disponibles para esta sala.</p>
   <% end %>
 </div>
+
+<!-- Modal -->
+<div class="modal fade" id="reservationModal" tabindex="-1" role="dialog" aria-labelledby="reservationModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="reservationModalLabel">Reservar Reunión</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+      <%= form_with(url: '', method: :post, local: false, id: 'reservationForm', data: { turbo: false }) do |form| %>
+          <div class="mb-3">
+            <%= form.label :participants, "Número de participantes" %>
+            <%= form.number_field :participants, min: 1, required: true, class: "form-control" %>
+          </div>
+          <%= form.hidden_field :meet_id, id: 'meet_id' %>
+          <%= form.hidden_field :room_id, value: @room.id %>
+          <%= form.submit "Reservar", class: "btn btn-primary" %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Incluye jQuery y Bootstrap JS -->
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script>
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') {
+    $('#reservationModal').modal('hide');
+  }
+});
+
+document.addEventListener('turbo:load', function() {
+    // Al hacer clic en el botón "Reservar"
+    document.querySelectorAll('.btn-success').forEach(button => {
+        button.addEventListener('click', function(event) {
+            event.preventDefault(); // Evita que el botón recargue la página
+
+            // Obtener los datos del botón
+            const meetId = this.getAttribute('data-meet-id');
+            const availableCapacity = this.getAttribute('data-available-capacity');
+
+            // Rellenar el modal con los datos
+            document.getElementById('meet_id').value = meetId;
+
+            const availableCapacityElement = document.getElementById('availableCapacity');
+            console.log('Available Capacity Element:', availableCapacityElement); // Verificar que existe
+            if (availableCapacityElement) {
+                availableCapacityElement.textContent = `Capacidad disponible: ${availableCapacity}`;
+            } else {
+                console.error('El elemento para la capacidad disponible no se encuentra.');
+            }
+
+            // Abrir el modal
+            $('#reservationModal').modal('show');
+        });
+    });
+
+    // Manejar el envío del formulario en el modal
+    const reservationForm = document.getElementById('reservationForm');
+    if (reservationForm) {
+        reservationForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevenir el envío del formulario tradicional
+            const meetId = document.getElementById('meet_id').value;
+            const participantsCount = document.getElementById('participants').value;
+            const roomId = this.querySelector('input[type="hidden"][value]').value; // Obtener el ID de la sala
+
+            fetch(`/rooms/${roomId}/meets/${meetId}/reserve`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({ participants: participantsCount })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    $('#reservationModal').modal('hide'); // Cerrar el modal si la reserva fue exitosa
+                    window.location.reload(); // Recargar la página para actualizar las reservas
+                } else {
+                    alert(data.message || 'Ocurrió un error al realizar la reserva');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    }
+
+    // Manejar el clic en el botón "Eliminar Reserva"
+    document.querySelectorAll('.cancel-reservation-btn').forEach(button => {
+        button.addEventListener('click', function(event) {
+            event.preventDefault(); // Evita que el botón recargue la página
+
+            // Obtener los datos del botón
+            const meetId = this.getAttribute('data-meet-id');
+            const roomId = this.getAttribute('data-room-id');
+
+            // Realizar la solicitud para cancelar la reserva
+            fetch(`/rooms/${roomId}/meets/${meetId}/cancel_reservation`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload(); // Recargar la página para actualizar el estado después de eliminar la reserva
+                } else {
+                    alert(data.message || 'Ocurrió un error al eliminar la reserva');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    });
+});
+</script>

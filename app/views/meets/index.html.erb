@@ -1,5 +1,9 @@
 <h1>Reuniones para <%= @room.name %></h1>
 
+<div class="d-flex justify-content-end mb-3">
+  <%= link_to 'Volver a las Salas', rooms_path, class: 'btn btn-primary' %>
+</div>
+
 <!-- Input oculto para almacenar el ID del Meet -->
 <input type="hidden" id="meet_id" value="">
 
@@ -14,7 +18,7 @@
         <p>Hora: <%= meet.hour.getlocal.strftime("%H:%M") %></p>
         <% if meet.reserved %>
           <p>Esta reunión ya está reservada.</p>
-          <%= button_to 'Eliminar Reserva', cancel_reservation_room_meet_path(@room, meet), method: :post, class: "btn btn-danger" %>
+          <%= button_to 'Eliminar Reserva', cancel_reservation_room_meet_path(@room, meet), method: :post, class: "btn btn-danger", remote: true, id: "cancel-reservation-#{meet.id}" %>
         <% else %>
           <%= button_to 'Reservar', '#', 
                 class: "btn btn-success", 
@@ -23,7 +27,8 @@
                   target: "#reservationModal", 
                   room_id: @room.id, 
                   meet_id: meet.id, 
-                  available_capacity: @room.capacity - (meet.participants_count || 0) 
+                  available_capacity: @room.capacity - (meet.participants_count || 0),
+                  participants_count: meet.participants_count || 0 
                 } %>
         <% end %>
       </div>
@@ -44,13 +49,13 @@
         </button>
       </div>
       <div class="modal-body">
-        <p id="availableCapacity"></p> <!-- Mostrar capacidad disponible -->
-        <p id="participantsCount"></p> <!-- Mostrar número de participantes -->
-        <%= form_with(url: reserve_room_meet_path(@room, 'meet_id_placeholder'), method: :post, id: 'reservationForm') do |form| %>
+      <%= form_with(url: '', method: :post, local: false, id: 'reservationForm', data: { turbo: false }) do |form| %>
           <div class="mb-3">
             <%= form.label :participants, "Número de participantes" %>
             <%= form.number_field :participants, min: 1, required: true, class: "form-control" %>
           </div>
+          <%= form.hidden_field :meet_id, id: 'meet_id' %>
+          <%= form.hidden_field :room_id, value: @room.id %>
           <%= form.submit "Reservar", class: "btn btn-primary" %>
         <% end %>
       </div>
@@ -64,22 +69,94 @@
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 
 <script>
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') {
+    $('#reservationModal').modal('hide');
+  }
+});
+
 document.addEventListener('turbo:load', function() {
+    // Al hacer clic en el botón "Reservar"
     document.querySelectorAll('.btn-success').forEach(button => {
         button.addEventListener('click', function(event) {
-            event.preventDefault();
+            event.preventDefault(); // Evita que el botón recargue la página
 
+            // Obtener los datos del botón
             const meetId = this.getAttribute('data-meet-id');
             const availableCapacity = this.getAttribute('data-available-capacity');
-            const participantsCount = this.getAttribute('data-participants-count'); // Asegúrate de tener este dato
 
             // Rellenar el modal con los datos
             document.getElementById('meet_id').value = meetId;
-            document.getElementById('availableCapacity').textContent = `Capacidad disponible: ${availableCapacity}`;
-            document.getElementById('participantsCount').textContent = `Número de participantes actuales: ${participantsCount}`; // Actualiza el número de participantes
+
+            const availableCapacityElement = document.getElementById('availableCapacity');
+            console.log('Available Capacity Element:', availableCapacityElement); // Verificar que existe
+            if (availableCapacityElement) {
+                availableCapacityElement.textContent = `Capacidad disponible: ${availableCapacity}`;
+            } else {
+                console.error('El elemento para la capacidad disponible no se encuentra.');
+            }
 
             // Abrir el modal
             $('#reservationModal').modal('show');
+        });
+    });
+
+    // Manejar el envío del formulario en el modal
+    const reservationForm = document.getElementById('reservationForm');
+    if (reservationForm) {
+        reservationForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevenir el envío del formulario tradicional
+            const meetId = document.getElementById('meet_id').value;
+            const participantsCount = document.getElementById('participants').value;
+            const roomId = this.querySelector('input[type="hidden"][value]').value; // Obtener el ID de la sala
+
+            fetch(`/rooms/${roomId}/meets/${meetId}/reserve`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({ participants: participantsCount })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    $('#reservationModal').modal('hide'); // Cerrar el modal si la reserva fue exitosa
+                    window.location.reload(); // Recargar la página para actualizar las reservas
+                } else {
+                    alert(data.message || 'Ocurrió un error al realizar la reserva');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    }
+
+    // Manejar el clic en el botón "Eliminar Reserva"
+    document.querySelectorAll('.cancel-reservation-btn').forEach(button => {
+        button.addEventListener('click', function(event) {
+            event.preventDefault(); // Evita que el botón recargue la página
+
+            // Obtener los datos del botón
+            const meetId = this.getAttribute('data-meet-id');
+            const roomId = this.getAttribute('data-room-id');
+
+            // Realizar la solicitud para cancelar la reserva
+            fetch(`/rooms/${roomId}/meets/${meetId}/cancel_reservation`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload(); // Recargar la página para actualizar el estado después de eliminar la reserva
+                } else {
+                    alert(data.message || 'Ocurrió un error al eliminar la reserva');
+                }
+            })
+            .catch(error => console.error('Error:', error));
         });
     });
 });

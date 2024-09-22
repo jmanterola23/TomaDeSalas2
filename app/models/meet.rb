@@ -12,19 +12,19 @@ class Meet < ApplicationRecord
     self.participants_count ||= 0
   end
   
-  # Método para reservar la reunión
-  #def reserve!
-    #update(available: false) if available
-  #end
+  #Método para reservar la reunión
+  def reserve!
+    update(available: false) if available
+  end
 
   def reserve(participants)
     if participants <= available_capacity
-      self.update(participants_count: (participants_count || 0) + participants)
+      self.update(participants_count: (participants_count || 0) + participants, available: false)
     else
       errors.add(:base, "No hay suficiente capacidad disponible para la cantidad de participantes")
       false
     end
-  end
+  end  
 
   def available_capacity
     room.capacity - (participants_count || 0)
